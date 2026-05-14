@@ -1768,8 +1768,7 @@ document.addEventListener('DOMContentLoaded', () => {
   dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
   dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleImageUpload(e.dataTransfer.files); });
   dropZone.addEventListener('click', () => {
-    const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
-    input.addEventListener('change', () => handleImageUpload(input.files)); input.click();
+    document.getElementById('diary-file-input').click();
   });
   document.getElementById('btn-ai-summary').addEventListener('click', generateAISummary);
   document.getElementById('btn-diary-ai').addEventListener('click', generateDiaryAISummary);
