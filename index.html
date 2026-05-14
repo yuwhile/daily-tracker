@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>今天你在干什么</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app-container">
+  <header class="app-header">
+    <h1>📋 今天你在干什么
+      <button class="btn-theme" id="btn-theme" title="切换主题">🎨</button>
+    </h1>
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="checkin">✅ 打卡</button>
+      <button class="tab-btn" data-tab="diary">📝 日记</button>
+      <button class="tab-btn" data-tab="stats">📊 统计</button>
+      <button class="tab-btn" data-tab="history">📅 历史</button>
+      <button class="tab-btn" data-tab="split">💸 分账</button>
+    </nav>
+  </header>
+
+  <!-- Tab: Checkin -->
+  <section id="tab-checkin" class="tab-panel">
+    <div class="date-bar">
+      <button class="btn-date" onclick="changeDate(-1)">←</button>
+      <span class="date-display clickable" id="checkin-date" onclick="openDatePicker('checkin')"></span>
+      <button class="btn-date" onclick="changeDate(1)">→</button>
+      <button class="btn-today" onclick="jumpToToday()">今天</button>
+    </div>
+    <input type="date" id="checkin-date-picker" class="date-picker-hidden" onchange="onDatePicked('checkin')">
+
+    <div class="checkin-toolbar">
+      <div class="search-wrap">
+        <input type="text" id="checkin-filter" class="checkin-filter" placeholder="🔍 搜索打卡...">
+        <button class="btn-clear-search" id="btn-clear-search" title="清除搜索">✕</button>
+      </div>
+      <div class="toolbar-btns">
+        <button class="btn-tool" id="btn-expand-all" title="展开/收起全部">⊞</button>
+        <button class="btn-tool" id="btn-filter-checked" title="仅显示已打卡">✓</button>
+        <button class="btn-tool" id="btn-manage" title="管理分组与打卡">⚙</button>
+      </div>
+    </div>
+
+    <div id="checkin-items" class="checkin-grid"></div>
+
+    <div class="bottom-actions">
+      <button class="btn-add-item" id="btn-add-item">+ 添加打卡</button>
+      <button class="btn-add-group" id="btn-add-group">+ 新建分组</button>
+    </div>
+  </section>
+
+  <!-- Tab: Diary -->
+  <section id="tab-diary" class="tab-panel hidden">
+    <div class="date-bar">
+      <button class="btn-date" onclick="changeDate(-1)">←</button>
+      <span class="date-display clickable" id="diary-date" onclick="openDatePicker('diary')"></span>
+      <button class="btn-date" onclick="changeDate(1)">→</button>
+      <button class="btn-today" onclick="jumpToToday()">今天</button>
+    </div>
+    <input type="date" id="diary-date-picker" class="date-picker-hidden" onchange="onDatePicked('diary')">
+
+    <textarea id="diary-content" class="diary-editor" placeholder="在这里写日记...&#10;&#10;可以写任何内容，失焦自动保存。"></textarea>
+
+    <div class="diary-images-section">
+      <div class="section-label">📷 图片（点击或拖拽上传）</div>
+      <div id="diary-images" class="diary-images-grid"></div>
+    </div>
+
+    <div class="diary-ai-section">
+      <div class="section-label">🤗 知心姐姐·本周回顾</div>
+      <div id="diary-ai-content"></div>
+      <button class="btn-ai-summary" id="btn-diary-ai">生成本周知心总结</button>
+    </div>
+
+    <div class="diary-export-section">
+      <button class="btn-backup" id="btn-export-diary">📥 导出日记</button>
+      <button class="btn-backup" id="btn-import-diary">📤 导入日记</button>
+      <input type="file" id="import-diary-input" accept=".json" class="hidden">
+    </div>
+  </section>
+
+  <!-- Tab: Stats -->
+  <section id="tab-stats" class="tab-panel hidden">
+    <div class="period-switch">
+      <button class="btn-period active" data-stats-period="week" onclick="setStatsPeriod('week')">周</button>
+      <button class="btn-period" data-stats-period="month" onclick="setStatsPeriod('month')">月</button>
+      <button class="btn-period" data-stats-period="quarter" onclick="setStatsPeriod('quarter')">季</button>
+      <button class="btn-period" data-stats-period="year" onclick="setStatsPeriod('year')">年</button>
+      <button class="btn-period btn-reset-period" onclick="resetStatsFilter()">↺</button>
+      <span class="stats-range" id="stats-range"></span>
+    </div>
+    <div class="stats-filter-bar">
+      <select id="stats-item-filter"><option value="">全部打卡</option></select>
+      <label>从 <input type="date" id="stats-date-from"></label>
+      <label>到 <input type="date" id="stats-date-to"></label>
+      <button class="btn-apply-filter" onclick="renderStats()">应用</button>
+      <button class="btn-reset-filter" onclick="resetStatsFilter()">重置</button>
+    </div>
+
+    <div id="stats-cards" class="stats-cards"></div>
+
+    <div class="chart-container" id="line-chart-wrap">
+      <canvas id="stats-line-chart"></canvas>
+    </div>
+
+    <div id="heatmaps-container"></div>
+
+    <div class="ai-summary-section">
+      <div class="section-label">🤖 AI 周总结</div>
+      <div id="ai-summary-content"></div>
+      <button class="btn-ai-summary" id="btn-ai-summary">生成 / 重新生成周总结</button>
+    </div>
+  </section>
+
+  <!-- Tab: History -->
+  <section id="tab-history" class="tab-panel hidden">
+    <div class="history-filters">
+      <label>从 <input type="date" id="hist-from"></label>
+      <label>到 <input type="date" id="hist-to"></label>
+      <select id="hist-item"></select>
+      <button class="btn-export" id="btn-export-csv">导出 Excel</button>
+    </div>
+
+    <div class="table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr><th>日期</th><th>分组</th><th>打卡</th><th>数值</th><th>上限</th><th>备注</th></tr>
+        </thead>
+        <tbody id="history-table-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Tab: Split -->
+  <section id="tab-split" class="tab-panel hidden">
+    <div class="date-bar">
+      <button class="btn-date" onclick="changeDate(-1)">←</button>
+      <span class="date-display clickable" id="split-date" onclick="openDatePicker('split')"></span>
+      <button class="btn-date" onclick="changeDate(1)">→</button>
+      <button class="btn-today" onclick="jumpToToday()">今天</button>
+    </div>
+    <input type="date" id="split-date-picker" class="date-picker-hidden" onchange="onDatePicked('split')">
+
+    <div class="split-layout">
+      <div class="split-users-panel">
+        <div class="section-label">👥 成员</div>
+        <div id="split-users-list"></div>
+        <div class="split-add-user">
+          <input type="text" id="split-user-name" placeholder="添加成员...">
+          <button id="btn-split-add-user">+</button>
+        </div>
+      </div>
+      <div class="split-bills-panel">
+        <div class="section-label">💰 账单</div>
+        <div id="split-bills-list"></div>
+        <button class="btn-add-bill" id="btn-add-bill">+ 记一笔</button>
+      </div>
+    </div>
+    <div class="split-summary" id="split-summary"></div>
+    <button class="btn-export-split" id="btn-export-split" style="display:none">📥 导出账单 (Excel)</button>
+  </section>
+</div>
+
+<!-- Split Bill Modal -->
+<div id="split-bill-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>记一笔</h3>
+    <div class="form-group">
+      <label>金额</label>
+      <input type="number" id="split-bill-amount" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="form-group">
+      <label>说明</label>
+      <input type="text" id="split-bill-desc" placeholder="例如：午饭">
+    </div>
+    <div class="form-group">
+      <label>付款人</label>
+      <select id="split-bill-payer"></select>
+    </div>
+    <div class="form-group">
+      <label>参与分账（勾选参与）</label>
+      <div id="split-bill-participants"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-split-bill-cancel">取消</button>
+      <button class="btn-save" id="btn-split-bill-save">确认</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Item Modal -->
+<div id="add-item-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>添加打卡</h3>
+    <div class="form-group">
+      <label>打卡名称</label>
+      <input type="text" id="new-item-name" placeholder="例如：拉屎、跑步、喝水...">
+    </div>
+    <div class="form-group">
+      <label>emoji 图标</label>
+      <div class="emoji-picker-row" id="emoji-picker">
+        <button class="emoji-opt" onclick="pickEmoji('💩', this)">💩</button>
+        <button class="emoji-opt" onclick="pickEmoji('💧', this)">💧</button>
+        <button class="emoji-opt" onclick="pickEmoji('💊', this)">💊</button>
+        <button class="emoji-opt" onclick="pickEmoji('💪', this)">💪</button>
+        <button class="emoji-opt" onclick="pickEmoji('🏃', this)">🏃</button>
+        <button class="emoji-opt" onclick="pickEmoji('📚', this)">📚</button>
+        <button class="emoji-opt" onclick="pickEmoji('🎮', this)">🎮</button>
+        <button class="emoji-opt" onclick="pickEmoji('💤', this)">💤</button>
+        <button class="emoji-opt" onclick="pickEmoji('🍚', this)">🍚</button>
+        <button class="emoji-opt" onclick="pickEmoji('🚿', this)">🚿</button>
+        <button class="emoji-opt" onclick="pickEmoji('🧘', this)">🧘</button>
+        <button class="emoji-opt" onclick="pickEmoji('🎯', this)">🎯</button>
+      </div>
+      <input type="text" id="new-item-icon" class="new-item-icon-input" placeholder="或手动输入 emoji...">
+    </div>
+    <div class="form-group">
+      <label>最大数值（1=打勾, 2+=分档）</label>
+      <input type="number" id="new-item-max" value="1" min="1" max="10" style="width:80px">
+    </div>
+    <div class="form-group">
+      <label>所属分组</label>
+      <select id="new-item-group">
+        <option value="">无分组</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-modal-cancel">取消</button>
+      <button class="btn-save" id="btn-modal-save">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Group Modal -->
+<div id="group-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>新建分组</h3>
+    <div class="form-group">
+      <label>分组名称</label>
+      <input type="text" id="new-group-name" placeholder="例如：健康、学习、工作...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-group-cancel">取消</button>
+      <button class="btn-save" id="btn-group-save">创建</button>
+    </div>
+  </div>
+</div>
+
+<!-- Management Modal -->
+<div id="manage-modal" class="modal hidden">
+  <div class="modal-content manage-content">
+    <h3>管理分组与打卡</h3>
+    <div id="manage-list"></div>
+    <div class="backup-section">
+      <div class="section-label">💾 数据备份</div>
+      <div class="backup-btns">
+        <button class="btn-backup" id="btn-export-all">📥 导出全部数据</button>
+        <button class="btn-backup" id="btn-import-all">📤 导入数据恢复</button>
+      </div>
+      <input type="file" id="import-file-input" accept=".json" class="hidden">
+      <div class="backup-hint">导出后保存到网盘或微信收藏，清除浏览器数据后可通过导入恢复。</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-manage-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Theme Picker Modal -->
+<div id="theme-modal" class="modal hidden">
+  <div class="modal-content theme-content">
+    <h3>🎨 选择主题</h3>
+    <div id="theme-options" class="theme-options"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-theme-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
