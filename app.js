@@ -78,16 +78,16 @@ const DataManager = {
     const all = this._load('diaries') || [];
     return all.find(d => d.date === date) || null;
   },
-  saveDiary(date, content, images) {
+  saveDiary(date, content) {
     const all = this._load('diaries') || [];
     const idx = all.findIndex(d => d.date === date);
     const now = new Date().toISOString();
     if (idx >= 0) {
       all[idx].content = content;
       all[idx].updatedAt = now;
-      if (images !== undefined) all[idx].images = images;
+      // Preserve existing images
     } else {
-      all.push({ id: Date.now(), date, content, images: images || [], updatedAt: now });
+      all.push({ id: Date.now(), date, content, images: [], updatedAt: now });
     }
     this._save('diaries', all);
   },
@@ -816,16 +816,48 @@ function viewFullImage(url) {
   document.body.appendChild(div);
 }
 
+function compressImage(file, callback) {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    URL.revokeObjectURL(url);
+    const maxW = 1200, maxH = 1200;
+    let w = img.width, h = img.height;
+    if (w > maxW || h > maxH) {
+      const ratio = Math.min(maxW / w, maxH / h);
+      w = Math.round(w * ratio); h = Math.round(h * ratio);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+    callback(dataUrl);
+  };
+  img.onerror = () => {
+    // Fallback: try reading directly
+    const reader = new FileReader();
+    reader.onload = (e) => callback(e.target.result);
+    reader.readAsDataURL(file);
+  };
+  img.src = url;
+}
+
 function handleImageUpload(files) {
-  const reader = new FileReader();
+  const btn = document.querySelector('.btn-upload-img');
+  const origText = btn.textContent;
   let idx = 0;
-  (function next() {
-    if (idx >= files.length) { renderDiaryImages(); return; }
+  function next() {
+    if (idx >= files.length) { btn.textContent = origText; renderDiaryImages(); return; }
+    btn.textContent = `处理中 ${idx + 1}/${files.length}...`;
     const file = files[idx++];
     if (!file.type.startsWith('image/')) { next(); return; }
-    reader.onload = (e) => { DataManager.addDiaryImage(currentDate, e.target.result, file.name); next(); };
-    reader.readAsDataURL(file);
-  })();
+    compressImage(file, (dataUrl) => {
+      DataManager.addDiaryImage(currentDate, dataUrl, file.name);
+      next();
+    });
+  }
+  next();
 }
 
 // ========== Tab 3: Stats ==========
