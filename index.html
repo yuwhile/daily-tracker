@@ -64,9 +64,12 @@
     <textarea id="diary-content" class="diary-editor" placeholder="在这里写日记...&#10;&#10;可以写任何内容，失焦自动保存。"></textarea>
 
     <div class="diary-images-section">
-      <div class="section-label">📷 图片（点击下方区域上传）</div>
+      <div class="section-label">📷 图片</div>
       <div id="diary-images" class="diary-images-grid"></div>
-      <input type="file" id="diary-file-input" accept="image/*" multiple onchange="handleImageUpload(this.files)" class="hidden">
+      <label class="btn-upload-img">
+        📷 上传图片
+        <input type="file" id="diary-file-input" accept="image/*" multiple onchange="handleImageUpload(this.files)">
+      </label>
     </div>
 
     <div class="diary-ai-section">

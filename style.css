@@ -262,13 +262,16 @@ body {
 .diary-images-section { margin-top: 14px; }
 .section-label { font-size: 13px; font-weight: 700; margin-bottom: 8px; color: var(--text-muted); }
 .diary-images-grid {
-  display: flex; flex-wrap: wrap; gap: 10px; min-height: 80px; padding: 14px;
+  display: grid; gap: 8px; min-height: 40px; padding: 12px;
   border: 2px dashed var(--border); border-radius: var(--radius); background: var(--card);
-  cursor: pointer; align-items: center; justify-content: flex-start; transition: border 0.2s;
+  transition: border 0.2s;
 }
-.diary-images-grid:hover, .diary-images-grid.drag-over { border-color: var(--accent); background: var(--pink-light); }
-.img-thumb { position: relative; width: 84px; height: 84px; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.img-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.diary-images-grid.drag-over { border-color: var(--accent); background: var(--pink-light); }
+.img-thumb {
+  position: relative; width: 100%; aspect-ratio: 1; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.img-thumb img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
 .btn-img-del {
   position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
   border: none; background: rgba(0,0,0,0.45); color: #fff; border-radius: 50%;
@@ -276,6 +279,28 @@ body {
 }
 .btn-img-del:hover { background: var(--danger); }
 .img-hint { width: 100%; text-align: center; color: var(--text-muted); font-size: 13px; }
+.btn-upload-img {
+  display: block; position: relative; text-align: center; margin-top: 8px; padding: 12px;
+  border: 2px dashed var(--border); border-radius: 10px; font-size: 14px;
+  cursor: pointer; color: var(--accent); font-weight: 600; transition: all 0.2s;
+  overflow: hidden;
+}
+.btn-upload-img:hover { border-color: var(--accent); background: var(--pink-light); }
+.btn-upload-img input[type="file"] {
+  position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor: pointer;
+}
+
+/* Lightbox */
+.img-lightbox {
+  position: fixed; top:0; left:0; right:0; bottom:0; background: rgba(0,0,0,0.9);
+  z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.img-lightbox img { max-width: 100%; max-height: 90vh; border-radius: 8px; object-fit: contain; }
+.img-lightbox-close {
+  position: absolute; top: 16px; right: 16px; width: 36px; height: 36px;
+  background: rgba(255,255,255,0.2); color: #fff; border: none; border-radius: 50%;
+  font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
 .diary-ai-section { margin-top: 16px; background: var(--card); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
 .diary-export-section { display: flex; gap: 8px; margin-top: 12px; }
 .diary-export-section .btn-backup { flex: 1; }

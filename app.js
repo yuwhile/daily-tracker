@@ -78,13 +78,41 @@ const DataManager = {
     const all = this._load('diaries') || [];
     return all.find(d => d.date === date) || null;
   },
-  saveDiary(date, content) {
+  saveDiary(date, content, images) {
     const all = this._load('diaries') || [];
     const idx = all.findIndex(d => d.date === date);
     const now = new Date().toISOString();
-    if (idx >= 0) { all[idx].content = content; all[idx].updatedAt = now; }
-    else all.push({ id: Date.now(), date, content, updatedAt: now });
+    if (idx >= 0) {
+      all[idx].content = content;
+      all[idx].updatedAt = now;
+      if (images !== undefined) all[idx].images = images;
+    } else {
+      all.push({ id: Date.now(), date, content, images: images || [], updatedAt: now });
+    }
     this._save('diaries', all);
+  },
+  addDiaryImage(date, dataUrl, originalName) {
+    const all = this._load('diaries') || [];
+    const idx = all.findIndex(d => d.date === date);
+    const img = { id: Date.now(), dataUrl, originalName };
+    if (idx >= 0) {
+      if (!all[idx].images) all[idx].images = [];
+      all[idx].images.push(img);
+      all[idx].updatedAt = new Date().toISOString();
+    } else {
+      all.push({ id: Date.now(), date, content: '', images: [img], updatedAt: new Date().toISOString() });
+    }
+    this._save('diaries', all);
+    return img;
+  },
+  removeDiaryImage(date, imageId) {
+    const all = this._load('diaries') || [];
+    const idx = all.findIndex(d => d.date === date);
+    if (idx >= 0 && all[idx].images) {
+      all[idx].images = all[idx].images.filter(im => im.id !== imageId);
+      all[idx].updatedAt = new Date().toISOString();
+      this._save('diaries', all);
+    }
   },
   getDiariesRange(from, to) {
     let all = this._load('diaries') || [];
@@ -111,68 +139,6 @@ const DataManager = {
     this._save('settings', Object.assign(existing, settings));
   },
 };
-
-// ========== IndexedDB for Images ==========
-const ImageStore = (() => {
-  const DB_NAME = 'dt_images', STORE = 'images';
-  let db = null;
-
-  function open() {
-    return new Promise((resolve, reject) => {
-      if (db) return resolve(db);
-      const req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = () => { req.result.createObjectStore(STORE, { keyPath: 'id' }); };
-      req.onsuccess = () => { db = req.result; resolve(db); };
-      req.onerror = () => reject(req.error);
-    });
-  }
-
-  return {
-    async save(diaryDate, file) {
-      const store = (await open()).transaction(STORE, 'readwrite').objectStore(STORE);
-      const record = {
-        id: Date.now(), diaryDate, originalName: file.name,
-        type: file.type, size: file.size,
-        data: await file.arrayBuffer(), createdAt: new Date().toISOString(),
-      };
-      return new Promise((resolve, reject) => {
-        const req = store.add(record);
-        req.onsuccess = () => resolve(record.id);
-        req.onerror = () => reject(req.error);
-      });
-    },
-    async getByDate(diaryDate) {
-      const store = (await open()).transaction(STORE, 'readonly').objectStore(STORE);
-      return new Promise((resolve) => {
-        const results = [];
-        store.openCursor().onsuccess = e => {
-          const cursor = e.target.result;
-          if (cursor) { if (cursor.value.diaryDate === diaryDate) results.push(cursor.value); cursor.continue(); }
-          else resolve(results);
-        };
-      });
-    },
-    async remove(id) {
-      const store = (await open()).transaction(STORE, 'readwrite').objectStore(STORE);
-      return new Promise((resolve) => { store.delete(id).onsuccess = resolve; });
-    },
-    async getAll() {
-      const store = (await open()).transaction(STORE, 'readonly').objectStore(STORE);
-      return new Promise((resolve) => {
-        const results = [];
-        store.openCursor().onsuccess = e => {
-          const cursor = e.target.result;
-          if (cursor) { results.push(cursor.value); cursor.continue(); }
-          else resolve(results);
-        };
-      });
-    },
-    async clearAll() {
-      const store = (await open()).transaction(STORE, 'readwrite').objectStore(STORE);
-      return new Promise((resolve) => { store.clear().onsuccess = resolve; });
-    },
-  };
-})();
 
 // ========== Helpers ==========
 function todayStr() { return new Date().toISOString().slice(0, 10); }
@@ -817,34 +783,49 @@ function onDiaryInput() {
   }, 800);
 }
 
-async function renderDiaryImages() {
+function renderDiaryImages() {
   const container = document.getElementById('diary-images');
-  const images = await ImageStore.getByDate(currentDate);
+  const diary = DataManager.getDiary(currentDate);
+  const images = (diary && diary.images) ? diary.images : [];
+  const cols = images.length <= 1 ? 1 : (images.length === 2 ? 2 : 3);
+  container.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   if (images.length === 0) {
-    container.innerHTML = '<div class="img-hint">点击或拖拽上传图片</div>';
+    container.innerHTML = '<div class="img-hint">还没有图片</div>';
     return;
   }
-  container.innerHTML = images.map(img => {
-    const url = URL.createObjectURL(new Blob([img.data], { type: img.type }));
-    return `<div class="img-thumb" data-id="${img.id}">
-      <img src="${url}" alt="${img.originalName}">
-      <button class="btn-img-del" data-id="${img.id}">×</button></div>`;
-  }).join('');
+  container.innerHTML = images.map(img => `<div class="img-thumb" data-id="${img.id}">
+    <img src="${img.dataUrl}" alt="${img.originalName}" onclick="viewFullImage(\`${img.dataUrl}\`)">
+    <button class="btn-img-del" data-id="${img.id}">×</button></div>`).join('');
   container.querySelectorAll('.btn-img-del').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      await ImageStore.remove(parseInt(btn.dataset.id));
+      DataManager.removeDiaryImage(currentDate, parseInt(btn.dataset.id));
       renderDiaryImages();
     });
   });
 }
 
-async function handleImageUpload(files) {
-  for (const file of files) {
-    if (!file.type.startsWith('image/')) continue;
-    await ImageStore.save(currentDate, file);
-  }
-  renderDiaryImages();
+function viewFullImage(url) {
+  const existing = document.getElementById('img-lightbox');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'img-lightbox';
+  div.className = 'img-lightbox';
+  div.innerHTML = `<img src="${url}"><button class="img-lightbox-close" onclick="this.parentElement.remove()">×</button>`;
+  div.addEventListener('click', (e) => { if (e.target === div) div.remove(); });
+  document.body.appendChild(div);
+}
+
+function handleImageUpload(files) {
+  const reader = new FileReader();
+  let idx = 0;
+  (function next() {
+    if (idx >= files.length) { renderDiaryImages(); return; }
+    const file = files[idx++];
+    if (!file.type.startsWith('image/')) { next(); return; }
+    reader.onload = (e) => { DataManager.addDiaryImage(currentDate, e.target.result, file.name); next(); };
+    reader.readAsDataURL(file);
+  })();
 }
 
 // ========== Tab 3: Stats ==========
@@ -1538,87 +1519,38 @@ function setTheme(id) {
   document.querySelectorAll('.theme-opt').forEach(o => o.classList.toggle('active', o.textContent.includes(THEMES.find(t => t.id === id).name)));
 }
 
-async function exportAllData() {
+function exportAllData() {
   const backup = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key.startsWith('dt_')) backup[key] = localStorage.getItem(key);
   }
-  // Include images as base64
-  try {
-    const images = await ImageStore.getAll();
-    if (images.length > 0) {
-      backup['__images__'] = images.map(img => ({
-        id: img.id, diaryDate: img.diaryDate, originalName: img.originalName,
-        type: img.type, data: arrayBufferToBase64(img.data), createdAt: img.createdAt,
-      }));
-    }
-  } catch(e) { /* images optional */ }
-
   const json = JSON.stringify(backup, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = `daily-tracker-backup-${todayStr()}.json`;
   a.click(); URL.revokeObjectURL(url);
-  alert('数据已导出！包含打卡、日记、分账和图片。');
+  alert('数据已导出！包含打卡、日记（含图片）、分账。');
 }
 
-function arrayBufferToBase64(buffer) {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary);
-}
-
-function base64ToArrayBuffer(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes.buffer;
-}
-
-async function importAllData() {
+function importAllData() {
   const file = document.getElementById('import-file-input').files[0];
   if (!file) return;
   if (!confirm('导入将覆盖当前全部数据，确定继续？')) { document.getElementById('import-file-input').value = ''; return; }
   const reader = new FileReader();
-  reader.onload = async (e) => {
+  reader.onload = (e) => {
     try {
       const backup = JSON.parse(e.target.result);
-
-      // Clear current dt_ data
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key.startsWith('dt_')) keysToRemove.push(key);
       }
       keysToRemove.forEach(k => localStorage.removeItem(k));
-
-      // Restore localStorage
-      const imagesData = backup['__images__'];
-      delete backup['__images__'];
       Object.entries(backup).forEach(([key, value]) => {
         if (key.startsWith('dt_')) localStorage.setItem(key, value);
       });
-
-      // Restore images
-      if (imagesData && imagesData.length > 0) {
-        await ImageStore.clearAll();
-        const store = (await (() => new Promise((resolve, reject) => {
-          const req = indexedDB.open('dt_images', 1);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        }))()).transaction('images', 'readwrite').objectStore('images');
-
-        for (const img of imagesData) {
-          await new Promise((resolve) => {
-            const record = { ...img, data: base64ToArrayBuffer(img.data) };
-            store.add(record).onsuccess = resolve;
-          });
-        }
-      }
-
       alert('数据已恢复！页面将重新加载。');
       location.reload();
     } catch (err) { alert('导入失败：' + err.message); }
@@ -1627,26 +1559,10 @@ async function importAllData() {
   document.getElementById('import-file-input').value = '';
 }
 
-async function exportDiary() {
-  const backup = {};
-  // Diaries
+function exportDiary() {
   const diaries = DataManager._load('diaries') || [];
-  if (diaries.length > 0) backup.diaries = diaries;
-
-  // Images for diaries
-  try {
-    const images = await ImageStore.getAll();
-    if (images.length > 0) {
-      backup.images = images.map(img => ({
-        id: img.id, diaryDate: img.diaryDate, originalName: img.originalName,
-        type: img.type, data: arrayBufferToBase64(img.data), createdAt: img.createdAt,
-      }));
-    }
-  } catch(e) {}
-
-  if (!backup.diaries && !backup.images) { alert('没有日记数据可导出'); return; }
-
-  const json = JSON.stringify(backup, null, 2);
+  if (diaries.length === 0) { alert('没有日记数据可导出'); return; }
+  const json = JSON.stringify({ diaries }, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1655,40 +1571,15 @@ async function exportDiary() {
   alert('日记已导出！包含文字和图片。');
 }
 
-async function importDiary() {
+function importDiary() {
   const file = document.getElementById('import-diary-input').files[0];
   if (!file) return;
   if (!confirm('导入将覆盖当前日记数据，确定继续？')) { document.getElementById('import-diary-input').value = ''; return; }
   const reader = new FileReader();
-  reader.onload = async (e) => {
+  reader.onload = (e) => {
     try {
       const backup = JSON.parse(e.target.result);
-
-      // Restore diaries
       if (backup.diaries) DataManager._save('diaries', backup.diaries);
-
-      // Restore images
-      if (backup.images && backup.images.length > 0) {
-        // Remove old images for imported dates
-        const importedDates = new Set(backup.images.map(i => i.diaryDate));
-        const existingImages = await ImageStore.getAll();
-        for (const img of existingImages) {
-          if (importedDates.has(img.diaryDate)) await ImageStore.remove(img.id);
-        }
-        // Add new images
-        const store = (await (() => new Promise((resolve, reject) => {
-          const req = indexedDB.open('dt_images', 1);
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        }))()).transaction('images', 'readwrite').objectStore('images');
-
-        for (const img of backup.images) {
-          await new Promise((resolve) => {
-            store.add({ ...img, data: base64ToArrayBuffer(img.data) }).onsuccess = resolve;
-          });
-        }
-      }
-
       alert('日记已恢复！');
       renderDiary();
     } catch (err) { alert('导入失败：' + err.message); }
@@ -1763,13 +1654,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-group-cancel').addEventListener('click', hideGroupModal);
   document.getElementById('btn-group-save').addEventListener('click', addNewGroup);
   document.getElementById('diary-content').addEventListener('input', onDiaryInput);
-  const dropZone = document.getElementById('diary-images');
-  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleImageUpload(e.dataTransfer.files); });
-  dropZone.addEventListener('click', () => {
-    document.getElementById('diary-file-input').click();
-  });
   document.getElementById('btn-ai-summary').addEventListener('click', generateAISummary);
   document.getElementById('btn-diary-ai').addEventListener('click', generateDiaryAISummary);
   document.getElementById('stats-item-filter').addEventListener('change', renderStats);
