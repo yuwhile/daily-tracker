@@ -86,10 +86,13 @@ body {
   margin-bottom: 14px; padding: 10px 12px; background: var(--card);
   border-radius: var(--radius); box-shadow: var(--shadow);
 }
-.date-display { font-size: 15px; font-weight: 700; min-width: 140px; text-align: center; }
-.date-display.clickable { cursor: pointer; transition: color 0.2s; }
-.date-display.clickable:hover { color: var(--accent-hover); }
-.date-picker-hidden { position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0; }
+.date-input-native {
+  padding: 6px 10px; border: 2px solid var(--border); border-radius: 12px;
+  font-size: 14px; font-weight: 700; font-family: inherit; background: var(--card);
+  color: var(--text); cursor: pointer; min-width: 140px; text-align: center;
+  -webkit-appearance: none;
+}
+.date-input-native:focus { border-color: var(--accent); outline: none; }
 .btn-date, .btn-today {
   padding: 8px 14px; border: 2px solid var(--border); background: var(--card);
   border-radius: 20px; font-size: 14px; cursor: pointer; min-width: 38px;

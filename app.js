@@ -226,8 +226,7 @@ function switchTab(tab) {
 
 // ========== Tab 1: Checkin ==========
 function renderCheckin() {
-  document.getElementById('checkin-date').textContent = fmtDate(currentDate);
-  document.getElementById('checkin-date-picker').value = currentDate;
+  document.getElementById('checkin-date').value = currentDate;
 
   const filterText = (document.getElementById('checkin-filter').value || '').toLowerCase().trim();
   let items = DataManager.getItems();
@@ -523,18 +522,15 @@ function jumpToToday() {
 }
 
 function syncDatePickers() {
-  const ids = ['checkin-date-picker', 'diary-date-picker', 'split-date-picker'];
-  ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = currentDate; });
-}
-
-function openDatePicker(tab) {
-  const picker = document.getElementById(tab + '-date-picker');
-  picker.value = currentDate;
-  if (picker.showPicker) picker.showPicker();
+  ['checkin-date', 'diary-date', 'split-date'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = currentDate;
+  });
 }
 
 function onDatePicked(tab) {
-  const val = document.getElementById(tab + '-date-picker').value;
+  const el = document.getElementById(tab + '-date');
+  const val = el ? el.value : '';
   if (!val) return;
   currentDate = val;
   if (tab === 'checkin') renderCheckin();
@@ -798,8 +794,7 @@ function deleteGroupFromManage(id) {
 
 // ========== Tab 2: Diary ==========
 function renderDiary() {
-  document.getElementById('diary-date').textContent = fmtDate(currentDate);
-  document.getElementById('diary-date-picker').value = currentDate;
+  document.getElementById('diary-date').value = currentDate;
   const diary = DataManager.getDiary(currentDate);
   document.getElementById('diary-content').value = diary ? diary.content : '';
   renderDiaryImages();
@@ -1341,8 +1336,7 @@ const SplitData = {
 };
 
 function renderSplit() {
-  document.getElementById('split-date').textContent = fmtDate(currentDate);
-  document.getElementById('split-date-picker').value = currentDate;
+  document.getElementById('split-date').value = currentDate;
 
   const users = SplitData.getUsers();
   const allBills = SplitData.getBills();

@@ -27,11 +27,10 @@
   <section id="tab-checkin" class="tab-panel">
     <div class="date-bar">
       <button class="btn-date" onclick="changeDate(-1)">←</button>
-      <span class="date-display clickable" id="checkin-date" onclick="openDatePicker('checkin')"></span>
+      <input type="date" id="checkin-date" class="date-input-native" onchange="onDatePicked('checkin')">
       <button class="btn-date" onclick="changeDate(1)">→</button>
       <button class="btn-today" onclick="jumpToToday()">今天</button>
     </div>
-    <input type="date" id="checkin-date-picker" class="date-picker-hidden" onchange="onDatePicked('checkin')">
 
     <div class="checkin-toolbar">
       <div class="search-wrap">
@@ -57,11 +56,10 @@
   <section id="tab-diary" class="tab-panel hidden">
     <div class="date-bar">
       <button class="btn-date" onclick="changeDate(-1)">←</button>
-      <span class="date-display clickable" id="diary-date" onclick="openDatePicker('diary')"></span>
+      <input type="date" id="diary-date" class="date-input-native" onchange="onDatePicked('diary')">
       <button class="btn-date" onclick="changeDate(1)">→</button>
       <button class="btn-today" onclick="jumpToToday()">今天</button>
     </div>
-    <input type="date" id="diary-date-picker" class="date-picker-hidden" onchange="onDatePicked('diary')">
 
     <textarea id="diary-content" class="diary-editor" placeholder="在这里写日记...&#10;&#10;可以写任何内容，失焦自动保存。"></textarea>
 
@@ -102,13 +100,8 @@
     </div>
 
     <div id="stats-cards" class="stats-cards"></div>
-
-    <div class="chart-container" id="line-chart-wrap">
-      <canvas id="stats-line-chart"></canvas>
-    </div>
-
+    <div class="chart-container" id="line-chart-wrap"><canvas id="stats-line-chart"></canvas></div>
     <div id="heatmaps-container"></div>
-
     <div class="ai-summary-section">
       <div class="section-label">🤖 AI 周总结</div>
       <div id="ai-summary-content"></div>
@@ -124,12 +117,9 @@
       <select id="hist-item"></select>
       <button class="btn-export" id="btn-export-csv">导出 Excel</button>
     </div>
-
     <div class="table-wrap">
       <table class="history-table">
-        <thead>
-          <tr><th>日期</th><th>分组</th><th>打卡</th><th>数值</th><th>上限</th><th>备注</th></tr>
-        </thead>
+        <thead><tr><th>日期</th><th>分组</th><th>打卡</th><th>数值</th><th>上限</th><th>备注</th></tr></thead>
         <tbody id="history-table-body"></tbody>
       </table>
     </div>
@@ -139,11 +129,10 @@
   <section id="tab-split" class="tab-panel hidden">
     <div class="date-bar">
       <button class="btn-date" onclick="changeDate(-1)">←</button>
-      <span class="date-display clickable" id="split-date" onclick="openDatePicker('split')"></span>
+      <input type="date" id="split-date" class="date-input-native" onchange="onDatePicked('split')">
       <button class="btn-date" onclick="changeDate(1)">→</button>
       <button class="btn-today" onclick="jumpToToday()">今天</button>
     </div>
-    <input type="date" id="split-date-picker" class="date-picker-hidden" onchange="onDatePicked('split')">
 
     <div class="split-layout">
       <div class="split-users-panel">
@@ -169,22 +158,10 @@
 <div id="split-bill-modal" class="modal hidden">
   <div class="modal-content">
     <h3>记一笔</h3>
-    <div class="form-group">
-      <label>金额</label>
-      <input type="number" id="split-bill-amount" placeholder="0" min="0" step="0.01">
-    </div>
-    <div class="form-group">
-      <label>说明</label>
-      <input type="text" id="split-bill-desc" placeholder="例如：午饭">
-    </div>
-    <div class="form-group">
-      <label>付款人</label>
-      <select id="split-bill-payer"></select>
-    </div>
-    <div class="form-group">
-      <label>参与分账（勾选参与）</label>
-      <div id="split-bill-participants"></div>
-    </div>
+    <div class="form-group"><label>金额</label><input type="number" id="split-bill-amount" placeholder="0" min="0" step="0.01"></div>
+    <div class="form-group"><label>说明</label><input type="text" id="split-bill-desc" placeholder="例如：午饭"></div>
+    <div class="form-group"><label>付款人</label><select id="split-bill-payer"></select></div>
+    <div class="form-group"><label>参与分账（勾选参与）</label><div id="split-bill-participants"></div></div>
     <div class="modal-actions">
       <button class="btn-cancel" id="btn-split-bill-cancel">取消</button>
       <button class="btn-save" id="btn-split-bill-save">确认</button>
@@ -196,10 +173,7 @@
 <div id="add-item-modal" class="modal hidden">
   <div class="modal-content">
     <h3>添加打卡</h3>
-    <div class="form-group">
-      <label>打卡名称</label>
-      <input type="text" id="new-item-name" placeholder="例如：拉屎、跑步、喝水...">
-    </div>
+    <div class="form-group"><label>打卡名称</label><input type="text" id="new-item-name" placeholder="例如：拉屎、跑步、喝水..."></div>
     <div class="form-group">
       <label>emoji 图标</label>
       <div class="emoji-picker-row" id="emoji-picker">
@@ -218,20 +192,9 @@
       </div>
       <input type="text" id="new-item-icon" class="new-item-icon-input" placeholder="或手动输入 emoji...">
     </div>
-    <div class="form-group">
-      <label>最大数值（1=打勾, 2+=分档）</label>
-      <input type="number" id="new-item-max" value="1" min="1" max="10" style="width:80px">
-    </div>
-    <div class="form-group">
-      <label>所属分组</label>
-      <select id="new-item-group">
-        <option value="">无分组</option>
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="btn-modal-cancel">取消</button>
-      <button class="btn-save" id="btn-modal-save">添加</button>
-    </div>
+    <div class="form-group"><label>最大数值（1=打勾, 2+=分档）</label><input type="number" id="new-item-max" value="1" min="1" max="10" style="width:80px"></div>
+    <div class="form-group"><label>所属分组</label><select id="new-item-group"><option value="">无分组</option></select></div>
+    <div class="modal-actions"><button class="btn-cancel" id="btn-modal-cancel">取消</button><button class="btn-save" id="btn-modal-save">添加</button></div>
   </div>
 </div>
 
@@ -239,14 +202,8 @@
 <div id="group-modal" class="modal hidden">
   <div class="modal-content">
     <h3>新建分组</h3>
-    <div class="form-group">
-      <label>分组名称</label>
-      <input type="text" id="new-group-name" placeholder="例如：健康、学习、工作...">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="btn-group-cancel">取消</button>
-      <button class="btn-save" id="btn-group-save">创建</button>
-    </div>
+    <div class="form-group"><label>分组名称</label><input type="text" id="new-group-name" placeholder="例如：健康、学习、工作..."></div>
+    <div class="modal-actions"><button class="btn-cancel" id="btn-group-cancel">取消</button><button class="btn-save" id="btn-group-save">创建</button></div>
   </div>
 </div>
 
@@ -264,9 +221,7 @@
       <input type="file" id="import-file-input" accept=".json" class="hidden">
       <div class="backup-hint">导出后保存到网盘或微信收藏，清除浏览器数据后可通过导入恢复。</div>
     </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="btn-manage-close">关闭</button>
-    </div>
+    <div class="modal-actions"><button class="btn-cancel" id="btn-manage-close">关闭</button></div>
   </div>
 </div>
 
@@ -275,9 +230,7 @@
   <div class="modal-content theme-content">
     <h3>🎨 选择主题</h3>
     <div id="theme-options" class="theme-options"></div>
-    <div class="modal-actions">
-      <button class="btn-cancel" id="btn-theme-close">关闭</button>
-    </div>
+    <div class="modal-actions"><button class="btn-cancel" id="btn-theme-close">关闭</button></div>
   </div>
 </div>
 
