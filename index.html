@@ -110,6 +110,7 @@
     <div class="stats-filter-bar">
       <input type="text" id="stats-search" placeholder="🔍 搜索打卡..." oninput="renderStats()">
       <div id="stats-checkboxes" class="stats-checkboxes"></div>
+      <button class="btn-uncheck-all" onclick="uncheckAllStats()">取消全选</button>
       <label>从 <input type="date" id="stats-date-from"></label>
       <label>到 <input type="date" id="stats-date-to"></label>
       <button class="btn-apply-filter" onclick="renderStats()">应用</button>

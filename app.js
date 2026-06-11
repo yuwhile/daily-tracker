@@ -914,6 +914,12 @@ function setStatsPeriod(p) {
   document.getElementById('stats-date-to').value = '';
   renderStats();
 }
+function uncheckAllStats() {
+  const cbs = document.querySelectorAll('#stats-checkboxes input');
+  const anyChecked = [...cbs].some(cb => cb.checked);
+  cbs.forEach(cb => cb.checked = !anyChecked);
+  renderStats();
+}
 function resetStatsFilter() {
   statsPeriod = 'week';
   document.querySelectorAll('[data-stats-period]').forEach(b => b.classList.toggle('active', b.dataset.statsPeriod === 'week'));
@@ -1013,13 +1019,19 @@ function renderStats() {
   const cbDiv = document.getElementById('stats-checkboxes');
   // Get currently checked IDs before rebuilding
   const prevChecked = new Set([...cbDiv.querySelectorAll('input:checked')].map(cb => parseInt(cb.value)));
+  // On first load (no previous checkboxes), default all checked
+  const isFirstRender = cbDiv.children.length === 0;
   cbDiv.innerHTML = allItems.map(i => {
     const match = searchText && (i.name.toLowerCase().includes(searchText) || i.icon.includes(searchText));
-    const checked = prevChecked.has(i.id) || match;
+    const checked = isFirstRender ? true : (prevChecked.has(i.id) || match);
     return `<label class="stats-cb-label"><input type="checkbox" value="${i.id}" ${checked ? 'checked' : ''}> ${i.icon} ${escapeHtml(i.name)}</label>`;
   }).join('');
   const checkedIds = new Set([...cbDiv.querySelectorAll('input:checked')].map(cb => parseInt(cb.value)));
   items = items.filter(i => checkedIds.has(i.id));
+  // Toggle button text
+  const anyChecked = cbDiv.querySelectorAll('input:checked').length > 0;
+  const btn = document.querySelector('.btn-uncheck-all');
+  if (btn) btn.textContent = anyChecked ? '取消全选' : '全部勾选';
   const itemIds = new Set(items.map(i => i.id));
   const allChecks = DataManager.getChecksRange(from, to, null);
   const checks = allChecks.filter(c => itemIds.has(c.itemId));
@@ -1175,7 +1187,10 @@ function buildHeatmap(item, from, to, checksByDate) {
         const intensity = maxVal > 0 ? val / maxVal : 0;
         const isToday = dateStr === todayStr();
         html += `<div class="hm-cell ${isToday ? 'hm-today' : ''}" data-date="${dateStr}" data-item="${item.id}" data-value="${val}"
-          style="--intensity:${intensity.toFixed(2)}" title="${dateStr}: ${val}"><span class="hm-date-num">${dayNum}</span></div>`;
+          style="--intensity:${intensity.toFixed(2)}" title="${dateStr}: ${val}">
+          <span class="hm-date-num">${dayNum}</span>
+          <span class="hm-agg-emojis">${val > 0 ? item.icon.repeat(Math.min(val, 5)) : ''}</span>
+        </div>`;
         cellIdx++;
       }
     }
