@@ -190,9 +190,11 @@ body {
 .checkin-card-header { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
 .checkin-emoji-display { font-size: 22px; line-height: 1.2; letter-spacing: 1px; min-width: 32px; word-break: break-all; }
 .emoji-zero { opacity: 0.18; filter: grayscale(0.95); }
+.emoji-partial { opacity: calc(0.3 + var(--pct) * 0.7); }
 .checkin-name { font-size: 15px; font-weight: 600; flex: 1; }
 .checkin-input-row { display: flex; align-items: center; gap: 8px; }
 .val-label { font-size: 12px; color: var(--text-muted); white-space: nowrap; font-weight: 500; }
+.val-unit { font-size: 12px; color: var(--text-muted); font-weight: 500; }
 .checkin-val-input {
   width: 60px; padding: 7px 10px; border: 2px solid var(--border);
   border-radius: 10px; font-size: 15px; text-align: center; outline: none; font-weight: 600;
@@ -223,6 +225,7 @@ body {
 }
 .edit-name-input { flex: 1; min-width: 50px; padding: 5px 8px; border: 2px solid var(--accent); border-radius: 8px; font-size: 14px; outline: none; }
 .edit-max-input { width: 54px; padding: 5px 6px; border: 2px solid var(--accent); border-radius: 8px; font-size: 14px; text-align: center; outline: none; }
+.edit-unit-input { width: 50px; padding: 5px 6px; border: 2px solid var(--accent); border-radius: 8px; font-size: 13px; text-align: center; outline: none; }
 .edit-group-select { padding: 5px 8px; border: 2px solid var(--accent); border-radius: 8px; font-size: 13px; outline: none; }
 .btn-edit-done {
   background: var(--accent); color: #fff; border: none; border-radius: 8px;
@@ -321,6 +324,11 @@ body {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
 }
 .stats-filter-bar select { padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; }
+#stats-search { flex-basis: 100%; padding: 6px 10px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; }
+#stats-search:focus { border-color: var(--accent); }
+.stats-checkboxes { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.stats-cb-label { font-size: 12px; display: flex; align-items: center; gap: 3px; cursor: pointer; padding: 3px 8px; background: var(--pink-light); border-radius: 12px; }
+.stats-cb-label input { width: 14px; height: 14px; accent-color: var(--accent); }
 .stats-filter-bar label { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 3px; }
 .stats-filter-bar input[type="date"] { padding: 6px 8px; border: 2px solid var(--border); border-radius: 8px; font-size: 12px; }
 .btn-apply-filter, .btn-reset-filter { padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer; border: none; font-weight: 600; }
@@ -359,7 +367,7 @@ body {
 .heatmap-section.hm-collapsed .heatmap-legend,
 .heatmap-section.hm-collapsed .heatmap-grid { display: none; }
 .heatmap-legend { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
-.legend-bar { flex:1; height:6px; border-radius:3px; background: linear-gradient(to right, #fff3f5, #f8c2d2, #f0a8bc); }
+.legend-bar { flex:1; height:6px; border-radius:3px; background: linear-gradient(to right, var(--hm-empty), var(--hm-full)); }
 .heatmap-grid.week-mode { display: grid; gap: 4px; }
 .heatmap-grid.week-mode .hm-cell {
   aspect-ratio: 1; display: flex; flex-direction: column; align-items: center;

@@ -159,6 +159,9 @@ function fmtDate(dateStr) {
   const wd = ['日', '一', '二', '三', '四', '五', '六'];
   return `${d.getMonth() + 1}月${d.getDate()}日 周${wd[d.getDay()]}`;
 }
+function isSunday(dateStr) {
+  return new Date(dateStr).getUTCDay() === 0;
+}
 function getMonday(dateStr) {
   const d = new Date(dateStr); // UTC
   const day = d.getUTCDay();
@@ -294,16 +297,17 @@ function renderCheckin() {
   container.querySelectorAll('.checkin-val-input').forEach(input => {
     input.addEventListener('input', () => {
       const itemId = parseInt(input.dataset.item);
-      const max = parseInt(input.dataset.max);
-      let val = parseInt(input.value) || 0;
+      const max = parseFloat(input.dataset.max);
+      let val = parseFloat(input.value) || 0;
       val = Math.max(0, Math.min(val, max));
       updateEmojiDisplay(input.closest('.checkin-card'), val, itemId);
     });
     input.addEventListener('change', () => {
       const itemId = parseInt(input.dataset.item);
-      const max = parseInt(input.dataset.max);
-      let val = parseInt(input.value) || 0;
+      const max = parseFloat(input.dataset.max);
+      let val = parseFloat(input.value) || 0;
       val = Math.max(0, Math.min(val, max));
+      val = Math.round(val * 100) / 100; // round to 2 decimals
       input.value = val;
       const card = input.closest('.checkin-card');
       updateEmojiDisplay(card, val, itemId);
@@ -371,36 +375,45 @@ function renderCheckin() {
   });
 }
 
+function emojiDisplayHTML(icon, val, max) {
+  if (val <= 0) return `<span class="emoji-zero">${icon}</span>`;
+  const full = Math.floor(val);
+  const frac = val - full;
+  let html = icon.repeat(Math.min(full, 20));
+  if (frac > 0.001 && full < 20) html += `<span class="emoji-partial" style="--pct:${frac}">${icon}</span>`;
+  if (val > 20) html += ` ×${val}`;
+  return html;
+}
+
 function renderCheckinCard(item, checksMap) {
   const check = checksMap[item.id];
   const value = check ? check.value : 0;
   const notes = check ? (check.notes || '') : '';
-  const emojiCount = Math.min(value, 20);
-  const emojiDisplay = value > 0
-    ? item.icon.repeat(emojiCount) + (value > 20 ? ` ×${value}` : '')
-    : `<span class="emoji-zero">${item.icon}</span>`;
+  const unit = item.unit || '';
   const groups = DataManager.getGroups();
   const groupOpts = '<option value="">无分组</option>' +
     groups.map(g => `<option value="${g.id}" ${item.groupId === g.id ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('');
+  const step = item.decimal ? '0.1' : '1';
   return `
     <div class="checkin-card" data-item-id="${item.id}">
       <div class="checkin-card-header">
-        <span class="checkin-emoji-display" data-val="${value}">${emojiDisplay}</span>
+        <span class="checkin-emoji-display" data-val="${value}">${emojiDisplayHTML(item.icon, value, item.scaleMax)}</span>
         <span class="checkin-name">${item.name}</span>
         <button class="btn-icon btn-edit" data-item="${item.id}" title="编辑打卡">⚙</button>
         <div class="edit-controls">
-          <input type="text" class="edit-emoji-input" value="${item.icon}" maxlength="4" placeholder="图标" title="emoji图标">
+          <input type="text" class="edit-emoji-input" value="${item.icon}" maxlength="4" placeholder="图标">
           <input type="text" class="edit-name-input" value="${escapeHtml(item.name)}" placeholder="名称">
           <select class="edit-group-select">${groupOpts}</select>
-          <input type="number" class="edit-max-input" value="${item.scaleMax}" min="1" max="99" step="1" placeholder="上限">
+          <input type="number" class="edit-max-input" value="${item.scaleMax}" min="0.1" max="999" step="0.1" placeholder="上限">
+          <input type="text" class="edit-unit-input" value="${escapeHtml(unit)}" placeholder="单位" title="如: ml">
           <button class="btn-icon-sm btn-edit-done" title="确认">✓</button>
         </div>
         <button class="btn-icon btn-del-item" data-item="${item.id}" title="删除">×</button>
       </div>
       <div class="checkin-input-row">
-        <label class="val-label">数量</label>
         <input type="number" class="checkin-val-input" data-item="${item.id}" data-max="${item.scaleMax}"
-               value="${value}" min="0" max="${item.scaleMax}" placeholder="0">
+               value="${value}" min="0" max="${item.scaleMax}" step="${step}" placeholder="0">
+        ${unit ? `<span class="val-unit">${escapeHtml(unit)}</span>` : ''}
         <input type="text" class="checkin-notes" data-item="${item.id}"
                placeholder="备注（可选）" value="${escapeHtml(notes)}">
       </div>
@@ -412,10 +425,7 @@ function updateEmojiDisplay(card, val, itemId) {
   if (!item) return;
   const display = card.querySelector('.checkin-emoji-display');
   if (!display) return;
-  const cnt = Math.min(val, 20);
-  display.innerHTML = val > 0
-    ? item.icon.repeat(cnt) + (val > 20 ? ` ×${val}` : '')
-    : `<span class="emoji-zero">${item.icon}</span>`;
+  display.innerHTML = emojiDisplayHTML(item.icon, val, item.scaleMax);
   display.dataset.val = val;
 }
 
@@ -428,7 +438,9 @@ function saveEditAndClose(card) {
   const nameInput = card.querySelector('.edit-name-input');
   const newName = nameInput ? nameInput.value.trim() : '';
   const maxInput = card.querySelector('.edit-max-input');
-  const newMax = maxInput ? Math.max(1, parseInt(maxInput.value) || 1) : 1;
+  const newMax = maxInput ? Math.max(0.1, parseFloat(maxInput.value) || 1) : 1;
+  const unitInput = card.querySelector('.edit-unit-input');
+  const newUnit = unitInput ? unitInput.value.trim() : '';
   const groupSel = card.querySelector('.edit-group-select');
   const newGroupId = groupSel ? (groupSel.value ? parseInt(groupSel.value) : null) : undefined;
 
@@ -437,6 +449,7 @@ function saveEditAndClose(card) {
   if (newName) updates.name = newName;
   if (newGroupId !== undefined) updates.groupId = newGroupId;
   updates.scaleMax = newMax;
+  updates.unit = newUnit;
   DataManager.updateItem(itemId, updates);
 
   const valInput = card.querySelector('.checkin-val-input');
@@ -473,6 +486,7 @@ function changeDate(delta) {
   if (currentTab === 'checkin') renderCheckin();
   else if (currentTab === 'diary') renderDiary();
   else if (currentTab === 'split') renderSplit();
+  else if (currentTab === 'stats') renderStats();
   setTimeout(() => { dateCdBusy = false; }, 100);
 }
 
@@ -484,24 +498,26 @@ function jumpToToday() {
   if (currentTab === 'checkin') renderCheckin();
   else if (currentTab === 'diary') renderDiary();
   else if (currentTab === 'split') renderSplit();
+  else if (currentTab === 'stats') renderStats();
   setTimeout(() => { dateCdBusy = false; }, 100);
 }
 
 function syncDatePickers() {
-  ['checkin-date', 'diary-date', 'split-date'].forEach(id => {
+  ['checkin-date', 'diary-date', 'split-date', 'stats-date-nav'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = currentDate;
   });
 }
 
 function onDatePicked(tab) {
-  const el = document.getElementById(tab + '-date');
+  const el = document.getElementById(tab === 'stats' ? 'stats-date-nav' : tab + '-date');
   const val = el ? el.value : '';
   if (!val) return;
   currentDate = val;
   if (tab === 'checkin') renderCheckin();
   else if (tab === 'diary') renderDiary();
   else if (tab === 'split') renderSplit();
+  else if (tab === 'stats') renderStats();
 }
 
 // ========== Add Item Modal ==========
@@ -526,10 +542,11 @@ function hideAddItemModal() { document.getElementById('add-item-modal').classLis
 function addNewItem() {
   const name = document.getElementById('new-item-name').value.trim();
   const icon = document.getElementById('new-item-icon').value.trim() || '✅';
-  const scaleMax = parseInt(document.getElementById('new-item-max').value) || 1;
+  const scaleMax = parseFloat(document.getElementById('new-item-max').value) || 1;
   const groupId = document.getElementById('new-item-group').value || null;
+  const unit = document.getElementById('new-item-unit').value.trim() || '';
   if (!name) return;
-  DataManager.addItem({ name, icon, scaleMax: Math.max(1, Math.min(99, scaleMax)), groupId: groupId ? parseInt(groupId) : null });
+  DataManager.addItem({ name, icon, scaleMax: Math.max(0.1, Math.min(999, scaleMax)), groupId: groupId ? parseInt(groupId) : null, unit });
   hideAddItemModal();
   renderCheckin();
 }
@@ -764,6 +781,12 @@ function renderDiary() {
   const diary = DataManager.getDiary(currentDate);
   document.getElementById('diary-content').value = diary ? diary.content : '';
   renderDiaryImages();
+  // AI summary: only on Sunday
+  const sun = isSunday(currentDate);
+  const btn = document.getElementById('btn-diary-ai');
+  btn.disabled = !sun;
+  btn.textContent = sun ? '生成本周知心总结' : '周日开放周总结';
+  btn.style.opacity = sun ? '1' : '0.5';
   // Show cached diary summary
   const from = getMonday(currentDate) + '_diary';
   const cached = DataManager.getSummary(from);
@@ -876,7 +899,9 @@ function resetStatsFilter() {
   document.querySelectorAll('[data-stats-period]').forEach(b => b.classList.toggle('active', b.dataset.statsPeriod === 'week'));
   document.getElementById('stats-date-from').value = '';
   document.getElementById('stats-date-to').value = '';
-  document.getElementById('stats-item-filter').value = '';
+  document.getElementById('stats-search').value = '';
+  const cbDiv = document.getElementById('stats-checkboxes');
+  if (cbDiv) [...cbDiv.querySelectorAll('input')].forEach(cb => cb.checked = true);
   renderStats();
 }
 
@@ -948,6 +973,7 @@ function drawLineChart(dateLabels, items, checksByDate) {
 }
 
 function renderStats() {
+  document.getElementById('stats-date-nav').value = currentDate;
   const customFrom = document.getElementById('stats-date-from').value;
   const customTo = document.getElementById('stats-date-to').value;
   let from, to;
@@ -961,14 +987,19 @@ function renderStats() {
   document.getElementById('stats-range').textContent = `${from} ~ ${to}`;
 
   let items = DataManager.getItems();
-  const statsFilterSel = document.getElementById('stats-item-filter');
-  const curFilterVal = statsFilterSel.value;
-  statsFilterSel.innerHTML = '<option value="">全部打卡</option>' +
-    DataManager.getItems().map(i => `<option value="${i.id}">${i.icon} ${escapeHtml(i.name)}</option>`).join('');
-  statsFilterSel.value = curFilterVal;
-  const filterItemId = parseInt(statsFilterSel.value) || null;
-  if (filterItemId) items = items.filter(i => i.id === filterItemId);
-
+  const allItems = DataManager.getItems();
+  const searchText = (document.getElementById('stats-search').value || '').toLowerCase().trim();
+  // Populate checkboxes, preserve existing checked state, add search matches
+  const cbDiv = document.getElementById('stats-checkboxes');
+  // Get currently checked IDs before rebuilding
+  const prevChecked = new Set([...cbDiv.querySelectorAll('input:checked')].map(cb => parseInt(cb.value)));
+  cbDiv.innerHTML = allItems.map(i => {
+    const match = searchText && (i.name.toLowerCase().includes(searchText) || i.icon.includes(searchText));
+    const checked = prevChecked.has(i.id) || match;
+    return `<label class="stats-cb-label"><input type="checkbox" value="${i.id}" ${checked ? 'checked' : ''}> ${i.icon} ${escapeHtml(i.name)}</label>`;
+  }).join('');
+  const checkedIds = new Set([...cbDiv.querySelectorAll('input:checked')].map(cb => parseInt(cb.value)));
+  items = items.filter(i => checkedIds.has(i.id));
   const itemIds = new Set(items.map(i => i.id));
   const allChecks = DataManager.getChecksRange(from, to, null);
   const checks = allChecks.filter(c => itemIds.has(c.itemId));
@@ -1027,6 +1058,11 @@ function renderStats() {
 
   const weekFrom = getMonday(currentDate);
   const existingSummary = DataManager.getSummary(weekFrom);
+  const sun = isSunday(currentDate);
+  const btn = document.getElementById('btn-ai-summary');
+  btn.disabled = !sun;
+  btn.textContent = sun ? '生成 / 重新生成周总结' : '周日开放';
+  btn.style.opacity = sun ? '1' : '0.5';
   const sc = document.getElementById('ai-summary-content');
   if (existingSummary) {
     sc.innerHTML = `<div class="summary-text">${existingSummary.summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">生成于 ${new Date(existingSummary.createdAt).toLocaleString()}</div>`;
@@ -1223,7 +1259,7 @@ async function generateAISummary() {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 200, messages: [{ role: 'user', content: prompt }] }),
     });
     if (!resp.ok) { const err = await resp.json(); throw new Error(err.error?.message || `HTTP ${resp.status}`); }
     const data = await resp.json();
@@ -1256,7 +1292,7 @@ async function generateDiaryAISummary() {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
     });
     if (!resp.ok) { const err = await resp.json(); throw new Error(err.error?.message || `HTTP ${resp.status}`); }
     const data = await resp.json();
@@ -1688,7 +1724,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('diary-content').addEventListener('input', onDiaryInput);
   document.getElementById('btn-ai-summary').addEventListener('click', generateAISummary);
   document.getElementById('btn-diary-ai').addEventListener('click', generateDiaryAISummary);
-  document.getElementById('stats-item-filter').addEventListener('change', renderStats);
   document.getElementById('stats-date-from').addEventListener('change', renderStats);
   document.getElementById('stats-date-to').addEventListener('change', renderStats);
   document.getElementById('hist-from').addEventListener('change', applyHistoryFilters);

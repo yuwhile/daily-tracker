@@ -87,6 +87,13 @@
 
   <!-- Tab: Stats -->
   <section id="tab-stats" class="tab-panel hidden">
+    <div class="date-bar">
+      <button class="btn-date" onclick="changeDate(-1)">←</button>
+      <input type="date" id="stats-date-nav" class="date-input-native" onchange="onDatePicked('stats')">
+      <button class="btn-date" onclick="changeDate(1)">→</button>
+      <button class="btn-today" onclick="jumpToToday()">今天</button>
+    </div>
+
     <div class="period-switch">
       <button class="btn-period active" data-stats-period="week" onclick="setStatsPeriod('week')">周</button>
       <button class="btn-period" data-stats-period="month" onclick="setStatsPeriod('month')">月</button>
@@ -96,7 +103,8 @@
       <span class="stats-range" id="stats-range"></span>
     </div>
     <div class="stats-filter-bar">
-      <select id="stats-item-filter"><option value="">全部打卡</option></select>
+      <input type="text" id="stats-search" placeholder="🔍 搜索打卡..." oninput="renderStats()">
+      <div id="stats-checkboxes" class="stats-checkboxes"></div>
       <label>从 <input type="date" id="stats-date-from"></label>
       <label>到 <input type="date" id="stats-date-to"></label>
       <button class="btn-apply-filter" onclick="renderStats()">应用</button>
@@ -196,7 +204,8 @@
       </div>
       <input type="text" id="new-item-icon" class="new-item-icon-input" placeholder="或手动输入 emoji...">
     </div>
-    <div class="form-group"><label>最大数值（1=打勾, 2+=分档）</label><input type="number" id="new-item-max" value="1" min="1" max="10" style="width:80px"></div>
+    <div class="form-group"><label>最大数值（支持小数）</label><input type="number" id="new-item-max" value="1" min="0.1" max="999" step="0.1" style="width:80px"></div>
+    <div class="form-group"><label>单位（可选，如 ml）</label><input type="text" id="new-item-unit" placeholder="例如：ml、杯、公里" style="width:100%"></div>
     <div class="form-group"><label>所属分组</label><select id="new-item-group"><option value="">无分组</option></select></div>
     <div class="modal-actions"><button class="btn-cancel" id="btn-modal-cancel">取消</button><button class="btn-save" id="btn-modal-save">添加</button></div>
   </div>
