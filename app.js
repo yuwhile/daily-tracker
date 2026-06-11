@@ -1283,6 +1283,7 @@ async function generateDiaryAISummary(type) {
   const [from, to] = getSummaryRange(type);
   const label = getSummaryTypeLabel(type);
   const summaryEl = document.getElementById('diary-ai-content');
+  if (!summaryEl) { alert('错误: 找不到显示区域'); aiBusy = false; return; }
   summaryEl.innerHTML = `<div class="loading">馆长正在整理${label}档案...</div>`;
   const diaries = DataManager.getDiariesRange(from, to);
   const items = DataManager.getItems();
@@ -1293,18 +1294,19 @@ async function generateDiaryAISummary(type) {
     return `${item.icon} ${item.name}: 打卡 ${total} 天`;
   }).join('\n');
   const prompt = `你是「人生档案馆馆长」。冷静、克制、真诚。不鼓励不安慰不建议。像拥有长期时间视角的人在读人生记录。关注：长期趋势、重复模式、行为惯性、精力分配、注意力流向。\n请根据以下${label}记录写一段100~300字的观察。\n【打卡】\n${checkSummary}\n【日记】\n${diaryText}\n直接输出，不要标题。`;
+  let resp;
+  try { resp = await fetch('https://api.deepseek.com/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey }, body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }) }); }
+  catch (e) { summaryEl.innerHTML = `<div class="error-msg">网络请求失败: ${escapeHtml(e.message)}<br>可能是网络不通或被拦截</div>`; aiBusy = false; return; }
+  if (!resp.ok) {
+    try { const err = await resp.json(); throw new Error(`[${resp.status}] ${err.error?.message || JSON.stringify(err.error)}`); }
+    catch (e) { summaryEl.innerHTML = `<div class="error-msg">API错误 [${resp.status}]</div>`; aiBusy = false; return; }
+  }
   try {
-    const resp = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
-    });
-    if (!resp.ok) { const err = await resp.json(); throw new Error(err.error?.message || `HTTP ${resp.status}`); }
     const data = await resp.json();
     const summary = data.choices[0].message.content;
     DataManager.saveSummary({ weekStart: from + '_diary_' + type, weekEnd: to, summary, createdAt: new Date().toISOString() });
-    summaryEl.innerHTML = `<div class="summary-text">${summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">档案馆 ·${label}总结 · ${new Date().toLocaleString()}</div>`;
-  } catch (e) { summaryEl.innerHTML = `<div class="error-msg">生成失败: ${escapeHtml(e.message)}</div>`; console.error(e); }
+    summaryEl.innerHTML = `<div class="summary-text">${summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">档案馆 · ${new Date().toLocaleString()}</div>`;
+  } catch (e) { summaryEl.innerHTML = `<div class="error-msg">解析失败: ${escapeHtml(e.message)}</div>`; }
   aiBusy = false;
 }
 
