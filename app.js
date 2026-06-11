@@ -1297,8 +1297,11 @@ async function generateAISummary(type) {
   const cacheKey = from + '_' + type;
   const cached = DataManager.getSummary(cacheKey);
   const label = getSummaryTypeLabel(type);
-  if (cached && !confirm(`${label}总结已存在，重新生成？`)) { aiBusy = false; return; }
   const summaryEl = document.getElementById('ai-summary-content');
+  if (cached) {
+    summaryEl.innerHTML = `<div class="summary-text">${cached.summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">${label}总结 · ${new Date(cached.createdAt).toLocaleString()}</div>`;
+    aiBusy = false; return;
+  }
   summaryEl.innerHTML = `<div class="loading">AI 正在生成${label}总结...</div>`;
   const diaries = DataManager.getDiariesRange(from, to);
   const items = DataManager.getItems();
