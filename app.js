@@ -159,8 +159,20 @@ function fmtDate(dateStr) {
   const wd = ['日', '一', '二', '三', '四', '五', '六'];
   return `${d.getMonth() + 1}月${d.getDate()}日 周${wd[d.getDay()]}`;
 }
-function isSunday(dateStr) {
-  return new Date(dateStr).getUTCDay() === 0;
+function isSunday(dateStr) { return new Date(dateStr).getUTCDay() === 0; }
+function isLastDayOfMonth(dateStr) {
+  const d = new Date(dateStr); d.setUTCDate(d.getUTCDate() + 1);
+  return d.getUTCDate() === 1;
+}
+function isLastDayOfQuarter(dateStr) {
+  const d = new Date(dateStr); const m = d.getUTCMonth();
+  const lastMonth = [2,5,8,11]; // March, June, September, December (0-indexed)
+  if (!lastMonth.includes(m)) return false;
+  d.setUTCDate(d.getUTCDate() + 1); return d.getUTCDate() === 1;
+}
+function isLastDayOfYear(dateStr) {
+  const d = new Date(dateStr);
+  return d.getUTCMonth() === 11 && d.getUTCDate() === 31;
 }
 function getMonday(dateStr) {
   const d = new Date(dateStr); // UTC
@@ -781,14 +793,16 @@ function renderDiary() {
   const diary = DataManager.getDiary(currentDate);
   document.getElementById('diary-content').value = diary ? diary.content : '';
   renderDiaryImages();
-  // AI summary: only on Sunday
-  const sun = isSunday(currentDate);
-  const btn = document.getElementById('btn-diary-ai');
-  btn.disabled = !sun;
-  btn.textContent = sun ? '生成本周知心总结' : '周日开放周总结';
-  btn.style.opacity = sun ? '1' : '0.5';
+  // Update AI button states
+  ['week','month','quarter','year'].forEach(type => {
+    const btn = document.getElementById('btn-diary-' + type);
+    if (!btn) return;
+    const due = isSummaryDue(type);
+    btn.disabled = !due;
+    btn.style.opacity = due ? '1' : '0.45';
+  });
   // Show cached diary summary
-  const from = getMonday(currentDate) + '_diary';
+  const from = utcAddDays(currentDate, -6) + '_diary_week';
   const cached = DataManager.getSummary(from);
   const sc = document.getElementById('diary-ai-content');
   if (cached) {
@@ -1056,18 +1070,23 @@ function renderStats() {
     cell.addEventListener('click', () => showAggregateDay(items, checksByDate, cell.dataset.date));
   });
 
-  const weekFrom = getMonday(currentDate);
-  const existingSummary = DataManager.getSummary(weekFrom);
-  const sun = isSunday(currentDate);
-  const btn = document.getElementById('btn-ai-summary');
-  btn.disabled = !sun;
-  btn.textContent = sun ? '生成 / 重新生成周总结' : '周日开放';
-  btn.style.opacity = sun ? '1' : '0.5';
+  // Update AI button states
+  ['week','month','quarter','year'].forEach(type => {
+    const btn = document.getElementById('btn-ai-' + type);
+    if (!btn) return;
+    const due = isSummaryDue(type);
+    btn.disabled = !due;
+    btn.style.opacity = due ? '1' : '0.45';
+    btn.title = due ? '点击生成' + getSummaryTypeLabel(type) + '总结' : getSummaryTypeLabel(type) + '总结尚未到期';
+  });
+  // Show cached summary for current type
+  const cacheKey = utcAddDays(currentDate, -6) + '_week';
+  const existingSummary = DataManager.getSummary(cacheKey);
   const sc = document.getElementById('ai-summary-content');
   if (existingSummary) {
     sc.innerHTML = `<div class="summary-text">${existingSummary.summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">生成于 ${new Date(existingSummary.createdAt).toLocaleString()}</div>`;
   } else {
-    sc.innerHTML = '<div class="empty-state">还没有周总结</div>';
+    sc.innerHTML = '<div class="empty-state">到期后可生成总结</div>';
   }
 }
 
@@ -1235,71 +1254,108 @@ function showAggregateDay(items, checksByDate, date) {
 function closeCellDetail() { const el = document.getElementById('cell-detail-overlay'); if (el) el.remove(); }
 function jumpToDateFromDetail(date) { closeCellDetail(); currentDate = date; switchTab('checkin'); }
 
-async function generateAISummary() {
-  const settings = DataManager.getSettings();
-  let apiKey = settings.anthropicApiKey || '';
-  if (!apiKey) { const key = prompt('请输入 Anthropic API Key：'); if (!key) return; DataManager.saveSettings({ anthropicApiKey: key }); apiKey = key; }
-  if (!apiKey) return;
-  const from = getMonday(currentDate);
-  const to = utcAddDays(from, 6);
-  const cached = DataManager.getSummary(from);
-  if (cached && !confirm('本周已有总结，是否重新生成？')) return;
-  const summaryEl = document.getElementById('ai-summary-content');
-  summaryEl.innerHTML = '<div class="loading">AI 正在生成周总结...</div>';
-  const diaries = DataManager.getDiariesRange(from, to);
-  const items = DataManager.getItems();
-  const checks = DataManager.getChecksRange(from, to, null);
-  let diaryText = diaries.map(d => `### ${fmtDate(d.date)}\n${d.content}`).join('\n\n') || '（本周没有写日记）';
-  let checkSummary = items.map(item => {
-    const total = checks.filter(c => c.itemId === item.id && c.value > 0).length;
-    return `${item.icon} ${item.name}: 打卡 ${total} 天`;
-  }).join('\n');
-  const prompt = `请用中文写一段不超过100字的周总结。简洁概括本周打卡亮点和日记心情。语气温暖。\n【本周打卡统计】\n${checkSummary}\n【本周日记内容】\n${diaryText}\n请直接输出总结，不要标题，严格100字以内。`;
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 200, messages: [{ role: 'user', content: prompt }] }),
-    });
-    if (!resp.ok) { const err = await resp.json(); throw new Error(err.error?.message || `HTTP ${resp.status}`); }
-    const data = await resp.json();
-    const summary = data.content[0].text;
-    DataManager.saveSummary({ weekStart: from, weekEnd: to, summary, createdAt: new Date().toISOString() });
-    summaryEl.innerHTML = `<div class="summary-text">${summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">生成于 ${new Date().toLocaleString()}</div>`;
-  } catch (e) { summaryEl.innerHTML = `<div class="error-msg">生成失败: ${escapeHtml(e.message)}</div>`; }
+let aiBusy = false;
+let pendingAiType = null; // 'stats' or 'diary'
+let pendingAiSummaryType = 'week';
+
+function showApiKeyModal() {
+  document.getElementById('apikey-input').value = '';
+  document.getElementById('apikey-modal').classList.remove('hidden');
 }
 
-// ========== Diary AI Summary (知心姐姐) ==========
-async function generateDiaryAISummary() {
+function saveApiKey() {
+  const key = document.getElementById('apikey-input').value.trim();
+  if (!key) return;
+  DataManager.saveSettings({ apiKey: key });
+  document.getElementById('apikey-modal').classList.add('hidden');
+  // Re-trigger the AI summary that was pending
+  if (pendingAiType === 'stats') generateAISummary(pendingAiSummaryType);
+  else if (pendingAiType === 'diary') generateDiaryAISummary(pendingAiSummaryType);
+}
+function getSummaryRange(type) {
+  const d = new Date(currentDate), y = d.getUTCFullYear(), m = d.getUTCMonth();
+  if (type === 'week') return [utcAddDays(currentDate, -6), currentDate];
+  if (type === 'month') return [`${y}-${String(m+1).padStart(2,'0')}-01`, currentDate];
+  if (type === 'quarter') { const qs = Math.floor(m/3)*3; return [`${y}-${String(qs+1).padStart(2,'0')}-01`, currentDate]; }
+  return [`${y}-01-01`, currentDate];
+}
+function getSummaryTypeLabel(type) { return {week:'周',month:'月',quarter:'季',year:'年'}[type]; }
+function isSummaryDue(type) {
+  if (type === 'week') return isSunday(currentDate);
+  if (type === 'month') return isLastDayOfMonth(currentDate);
+  if (type === 'quarter') return isLastDayOfQuarter(currentDate);
+  return isLastDayOfYear(currentDate);
+}
+
+async function generateAISummary(type) {
+  if (aiBusy) return;
+  aiBusy = true;
   const settings = DataManager.getSettings();
-  let apiKey = settings.anthropicApiKey || '';
-  if (!apiKey) { const key = prompt('请输入 Anthropic API Key：'); if (!key) return; DataManager.saveSettings({ anthropicApiKey: key }); apiKey = key; }
-  if (!apiKey) return;
-  const from = getMonday(currentDate);
-  const to = utcAddDays(from, 6);
-  const summaryEl = document.getElementById('diary-ai-content');
-  summaryEl.innerHTML = '<div class="loading">知心姐姐正在回顾你的一周...</div>';
+  let apiKey = settings.apiKey || '';
+  if (!apiKey) { pendingAiType = 'stats'; pendingAiSummaryType = type; showApiKeyModal(); aiBusy = false; return; }
+  const [from, to] = getSummaryRange(type);
+  const cacheKey = from + '_' + type;
+  const cached = DataManager.getSummary(cacheKey);
+  const label = getSummaryTypeLabel(type);
+  if (cached && !confirm(`${label}总结已存在，重新生成？`)) { aiBusy = false; return; }
+  const summaryEl = document.getElementById('ai-summary-content');
+  summaryEl.innerHTML = `<div class="loading">AI 正在生成${label}总结...</div>`;
   const diaries = DataManager.getDiariesRange(from, to);
   const items = DataManager.getItems();
   const checks = DataManager.getChecksRange(from, to, null);
-  let diaryText = diaries.map(d => `### ${fmtDate(d.date)}\n${d.content}`).join('\n\n') || '（本周没有写日记）';
+  let diaryText = diaries.map(d => `### ${fmtDate(d.date)}\n${d.content}`).join('\n\n') || '（没有写日记）';
   let checkSummary = items.map(item => {
     const total = checks.filter(c => c.itemId === item.id && c.value > 0).length;
     return `${item.icon} ${item.name}: 打卡 ${total} 天`;
   }).join('\n');
-  const prompt = `你是一个知心大姐姐，幽默风趣又温暖。请根据以下用户一周的打卡记录和日记，写一段周总结。要求：1.语气轻松幽默，像闺蜜聊天 2.夸夸做得好的地方 3.对不足的地方给温柔的建议 4.结尾来一句暖心的话。\n【本周打卡】\n${checkSummary}\n【本周日记】\n${diaryText}`;
+  const prompt = `请用中文写一段不超过100字的${label}总结。简洁概括${label}打卡亮点和日记心情。语气温暖。\n【打卡统计】\n${checkSummary}\n【日记内容】\n${diaryText}\n直接输出总结，100字以内。`;
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: 'claude-3-5-haiku-20241022', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 200, messages: [{ role: 'user', content: prompt }] }),
     });
     if (!resp.ok) { const err = await resp.json(); throw new Error(err.error?.message || `HTTP ${resp.status}`); }
     const data = await resp.json();
-    const summary = data.content[0].text;
-    DataManager.saveSummary({ weekStart: from + '_diary', weekEnd: to, summary, createdAt: new Date().toISOString() });
-    summaryEl.innerHTML = `<div class="summary-text">${summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">知心姐姐 · ${new Date().toLocaleString()}</div>`;
-  } catch (e) { summaryEl.innerHTML = `<div class="error-msg">生成失败: ${escapeHtml(e.message)}</div>`; }
+    const summary = data.choices[0].message.content;
+    DataManager.saveSummary({ weekStart: cacheKey, weekEnd: to, summary, createdAt: new Date().toISOString() });
+    summaryEl.innerHTML = `<div class="summary-text">${summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">${label}总结 · ${new Date().toLocaleString()}</div>`;
+  } catch (e) { summaryEl.innerHTML = `<div class="error-msg">生成失败: ${escapeHtml(e.message)}</div>`; console.error(e); }
+  aiBusy = false;
+}
+
+async function generateDiaryAISummary(type) {
+  if (aiBusy) return;
+  aiBusy = true;
+  const settings = DataManager.getSettings();
+  let apiKey = settings.apiKey || '';
+  if (!apiKey) { pendingAiType = 'diary'; pendingAiSummaryType = type; showApiKeyModal(); aiBusy = false; return; }
+  const [from, to] = getSummaryRange(type);
+  const label = getSummaryTypeLabel(type);
+  const summaryEl = document.getElementById('diary-ai-content');
+  summaryEl.innerHTML = `<div class="loading">知心姐姐正在写${label}总结...</div>`;
+  const diaries = DataManager.getDiariesRange(from, to);
+  const items = DataManager.getItems();
+  const checks = DataManager.getChecksRange(from, to, null);
+  let diaryText = diaries.map(d => `### ${fmtDate(d.date)}\n${d.content}`).join('\n\n') || '（没有写日记）';
+  let checkSummary = items.map(item => {
+    const total = checks.filter(c => c.itemId === item.id && c.value > 0).length;
+    return `${item.icon} ${item.name}: 打卡 ${total} 天`;
+  }).join('\n');
+  const prompt = `你是知心大姐姐，幽默风趣又温暖。请根据用户以下${label}记录写一段总结。要求：1.语气轻松幽默像闺蜜 2.夸夸亮点 3.温柔建议 4.暖心结尾。\n【打卡】\n${checkSummary}\n【日记】\n${diaryText}`;
+  try {
+    const resp = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: 'deepseek-chat', max_tokens: 800, messages: [{ role: 'user', content: prompt }] }),
+    });
+    if (!resp.ok) { const err = await resp.json(); throw new Error(err.error?.message || `HTTP ${resp.status}`); }
+    const data = await resp.json();
+    const summary = data.choices[0].message.content;
+    DataManager.saveSummary({ weekStart: from + '_diary_' + type, weekEnd: to, summary, createdAt: new Date().toISOString() });
+    summaryEl.innerHTML = `<div class="summary-text">${summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">知心姐姐 · ${label}总结 · ${new Date().toLocaleString()}</div>`;
+  } catch (e) { summaryEl.innerHTML = `<div class="error-msg">生成失败: ${escapeHtml(e.message)}</div>`; console.error(e); }
+  aiBusy = false;
 }
 
 // ========== Tab 4: History ==========
@@ -1722,8 +1778,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-group-cancel').addEventListener('click', hideGroupModal);
   document.getElementById('btn-group-save').addEventListener('click', addNewGroup);
   document.getElementById('diary-content').addEventListener('input', onDiaryInput);
-  document.getElementById('btn-ai-summary').addEventListener('click', generateAISummary);
-  document.getElementById('btn-diary-ai').addEventListener('click', generateDiaryAISummary);
   document.getElementById('stats-date-from').addEventListener('change', renderStats);
   document.getElementById('stats-date-to').addEventListener('change', renderStats);
   document.getElementById('hist-from').addEventListener('change', applyHistoryFilters);
@@ -1740,6 +1794,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-split-bill-cancel').addEventListener('click', hideSplitBillModal);
   document.getElementById('btn-split-bill-save').addEventListener('click', saveSplitBill);
   document.getElementById('btn-export-split').addEventListener('click', exportSplitExcel);
+
+  // API Key modal
+  document.getElementById('btn-apikey-save').addEventListener('click', saveApiKey);
+  document.getElementById('btn-apikey-cancel').addEventListener('click', () => { document.getElementById('apikey-modal').classList.add('hidden'); pendingAiType = null; });
+  document.getElementById('apikey-input').addEventListener('keydown', e => { if (e.key === 'Enter') saveApiKey(); });
 
   // Theme
   document.getElementById('btn-theme').addEventListener('click', showThemeModal);

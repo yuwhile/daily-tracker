@@ -73,9 +73,14 @@
     </div>
 
     <div class="diary-ai-section">
-      <div class="section-label">🤗 知心姐姐·本周回顾</div>
+      <div class="section-label">🤗 知心姐姐·总结</div>
       <div id="diary-ai-content"></div>
-      <button class="btn-ai-summary" id="btn-diary-ai">生成本周知心总结</button>
+      <div class="ai-btns">
+        <button class="btn-ai-type" id="btn-diary-week" onclick="generateDiaryAISummary('week')">📅 周总结</button>
+        <button class="btn-ai-type" id="btn-diary-month" onclick="generateDiaryAISummary('month')">📆 月总结</button>
+        <button class="btn-ai-type" id="btn-diary-quarter" onclick="generateDiaryAISummary('quarter')">📊 季总结</button>
+        <button class="btn-ai-type" id="btn-diary-year" onclick="generateDiaryAISummary('year')">🎯 年总结</button>
+      </div>
     </div>
 
     <div class="diary-export-section">
@@ -115,9 +120,14 @@
     <div class="chart-container" id="line-chart-wrap"><canvas id="stats-line-chart"></canvas></div>
     <div id="heatmaps-container"></div>
     <div class="ai-summary-section">
-      <div class="section-label">🤖 AI 周总结</div>
+      <div class="section-label">🤖 AI 总结</div>
       <div id="ai-summary-content"></div>
-      <button class="btn-ai-summary" id="btn-ai-summary">生成 / 重新生成周总结</button>
+      <div class="ai-btns">
+        <button class="btn-ai-type" id="btn-ai-week" onclick="generateAISummary('week')">📅 周总结</button>
+        <button class="btn-ai-type" id="btn-ai-month" onclick="generateAISummary('month')">📆 月总结</button>
+        <button class="btn-ai-type" id="btn-ai-quarter" onclick="generateAISummary('quarter')">📊 季总结</button>
+        <button class="btn-ai-type" id="btn-ai-year" onclick="generateAISummary('year')">🎯 年总结</button>
+      </div>
     </div>
   </section>
 
@@ -244,6 +254,24 @@
     <h3>🎨 选择主题</h3>
     <div id="theme-options" class="theme-options"></div>
     <div class="modal-actions"><button class="btn-cancel" id="btn-theme-close">关闭</button></div>
+  </div>
+</div>
+
+<!-- API Key Modal -->
+<div id="apikey-modal" class="modal hidden">
+  <div class="modal-content">
+    <h3>🔑 输入 DeepSeek API Key</h3>
+    <div class="form-group">
+      <label>使用 DeepSeek 生成 AI 总结</label>
+      <input type="password" id="apikey-input" placeholder="sk-...">
+    </div>
+    <div class="form-group" style="font-size:11px;color:var(--text-muted)">
+      去 <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a> 创建 Key
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btn-apikey-cancel">取消</button>
+      <button class="btn-save" id="btn-apikey-save">保存</button>
+    </div>
   </div>
 </div>
 
