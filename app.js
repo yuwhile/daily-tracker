@@ -1282,8 +1282,14 @@ async function generateDiaryAISummary(type) {
   if (!apiKey) { pendingAiType = 'diary'; pendingAiSummaryType = type; showApiKeyModal(); aiBusy = false; return; }
   const [from, to] = getSummaryRange(type);
   const label = getSummaryTypeLabel(type);
+  const cacheKey = from + '_diary_' + type;
+  const cached = DataManager.getSummary(cacheKey);
   const summaryEl = document.getElementById('diary-ai-content');
   if (!summaryEl) { alert('错误: 找不到显示区域'); aiBusy = false; return; }
+  if (cached) {
+    summaryEl.innerHTML = `<div class="summary-text">${cached.summary.replace(/\n/g, '<br>')}</div><div class="summary-meta">档案馆 · ${new Date(cached.createdAt).toLocaleString()}</div>`;
+    aiBusy = false; return;
+  }
   summaryEl.innerHTML = `<div class="loading">馆长正在整理${label}档案...</div>`;
   const diaries = DataManager.getDiariesRange(from, to);
   const items = DataManager.getItems();
